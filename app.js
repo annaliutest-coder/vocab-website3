@@ -35,11 +35,10 @@ async function loadData() {
     lessonData = await lessonRes.json();
     
     // ==========================================
-    // 核心修正：預設將所有載入的課別 (B1L1...B6L1) 加入已選清單
-    // 這代表所有課本詞彙預設都會被「過濾」(避開)
+    // 核心修正：預設不勾選任何課別，讓使用者手動選擇要避開的範圍
     // ==========================================
     selectedLessons.clear();
-    Object.keys(lessonData).forEach(k => selectedLessons.add(k));
+    // Object.keys(lessonData).forEach(k => selectedLessons.add(k)); // 已移除預設全選
     
     // 將所有課本生詞加入「斷詞提示庫」(knownWords)，確保斷詞準確
     // 這一步是為了讓斷詞引擎知道這些是詞彙，但過濾與否由 selectedLessons 決定
@@ -137,7 +136,7 @@ function highlightWordInInput(word) {
 
     backdrop.innerHTML = htmlContent;
 
-    // 【修改】只捲動到該位置，不執行 setSelectionRange (不反白)
+    // 只捲動到該位置，不執行 setSelectionRange (不反白)
     const marker = backdrop.querySelector('.highlight-marker');
     if (marker) {
         // 計算捲動位置，讓標記出現在畫面中間
@@ -219,7 +218,7 @@ function renderLessonCheckboxes() {
           cb.type = 'checkbox';
           cb.value = l;
           cb.className = `lesson-cb book-${bookName}`;
-          // 這裡根據 selectedLessons 設定是否勾選，因為 loadData 已全選，這裡預設會是勾選的
+          // 這裡根據 selectedLessons 設定是否勾選，預設為不勾選
           cb.checked = selectedLessons.has(l);
           cb.onchange = () => {
               if (cb.checked) selectedLessons.add(l); else selectedLessons.delete(l);
@@ -242,7 +241,7 @@ function updateBookMasterStatus() {
         const checked = document.querySelectorAll(`.lesson-cb.book-${b}:checked`).length;
         const master = document.querySelector(`.book-master-cb[data-book="${b}"]`);
         if (master) {
-            master.checked = checked === cbs.length;
+            master.checked = checked === cbs.length && cbs.length > 0;
             master.indeterminate = checked > 0 && checked < cbs.length;
         }
     });
@@ -299,8 +298,6 @@ function updateBlocklist() {
     
     // 2. 加入手動補充的詞彙
     customOldVocab.forEach(w => finalBlocklist.add(w));
-    
-    // 不再使用預設排除清單，完全依賴勾選範圍與手動補充
     
     document.getElementById('totalBlockedCount').innerText = finalBlocklist.size;
     updateSelectedCountUI();
