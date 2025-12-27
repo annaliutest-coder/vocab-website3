@@ -7,7 +7,7 @@ let selectedLessons = new Set();
 let finalBlocklist = new Set();
 
 // 1. 斷詞提示庫：告訴系統這些是「一個詞」，請優先斷出來
-// 這裡保留基本結構，主要依賴 lessonData 填充
+// 注意：這裡只負責斷詞，過濾功能由 finalBlocklist 負責
 let knownWords = new Set(["紅色", "護龍", "還都", "看書", "吃飯", "一定", "因為", "大家", "讓"]); 
 
 // 用於手動切分
@@ -35,7 +35,6 @@ async function loadData() {
     Object.keys(lessonData).forEach(k => selectedLessons.add(k));
     
     // 將所有課本生詞加入「斷詞提示庫」(knownWords)，確保斷詞準確
-    // 這一步是為了讓斷詞引擎知道這些是詞彙，但過濾與否由 selectedLessons 決定
     Object.values(lessonData).forEach(wordList => wordList.forEach(w => knownWords.add(w)));
 
     renderLessonCheckboxes();
@@ -287,8 +286,6 @@ function updateBlocklist() {
     
     // 2. 加入手動補充的詞彙
     customOldVocab.forEach(w => finalBlocklist.add(w));
-    
-    // 3. (已移除) 不再使用預設排除清單，完全依賴勾選範圍
     
     document.getElementById('totalBlockedCount').innerText = finalBlocklist.size;
     updateSelectedCountUI();
