@@ -1,4 +1,4 @@
-// app.js - 網站版生詞分析助手（含分冊累積選擇、手動切分 & 合併功能 & 完美 SVG 定位）
+// app.js - 網站版生詞分析助手（含分冊累積選擇、手動切分 & 合併功能 & 完美綠色反白定位）
 
 let tbclData = {};
 let lessonData = {}; 
@@ -82,7 +82,7 @@ function initBackdropSync() {
     setTimeout(syncStyles, 100);
 }
 
-// 產生 SVG 標記
+// 產生綠色反白標記
 function highlightWordInInput(word) {
     const input = document.getElementById('inputText');
     const backdrop = document.getElementById('inputBackdrop');
@@ -111,18 +111,12 @@ function highlightWordInInput(word) {
     const target = text.substring(index, index + word.length);
     const after = text.substring(index + word.length);
 
-    // 建立 SVG (使用 span 包裹，確保位置跟隨文字流)
-    // 【修改】將路徑改為方形 (M0,0 L100,0 L100,100 L0,100 Z)
-    const svgMarker = `
-    <span class="highlight-marker">
-        ${escapeHTML(target)}
-        <svg class="highlight-svg" viewBox="0 0 100 100" preserveAspectRatio="none">
-            <path d="M1,1 L99,1 L99,99 L1,99 Z" vector-effect="non-scaling-stroke" fill="none" />
-        </svg>
-    </span>`;
+    // 建立 Span 反白標記 (取代 SVG)
+    // 使用 span class="highlight-marker"
+    const highlightMarker = `<span class="highlight-marker">${escapeHTML(target)}</span>`;
 
     // 組合 HTML，特別處理結尾換行
-    let htmlContent = escapeHTML(before) + svgMarker + escapeHTML(after);
+    let htmlContent = escapeHTML(before) + highlightMarker + escapeHTML(after);
     if (text.endsWith('\n')) {
         htmlContent += '<br>'; // 修正 div 最後一個換行不顯示的問題
     }
