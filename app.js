@@ -1,48 +1,48 @@
 // app.js - 網站版生詞分析助手（含分冊累積選擇、手動切分 & 合併功能 & 完美 SVG 定位）
 
 let tbclData = {};
-let lessonData = {};
+let lessonData = {}; 
 let customOldVocab = new Set();
 let selectedLessons = new Set();
 let finalBlocklist = new Set();
 
-let knownWords = new Set(["紅色", "護龍", "還都", "看書", "吃飯", "一定"]);
+let knownWords = new Set(["紅色", "護龍", "還都", "看書", "吃飯", "一定"]); 
 let editingIndex = -1;
 let searchState = { word: '', lastIndex: -1 };
 
 const BOOK_ORDER = ['B1', 'B2', 'B3', 'B4', 'B5', 'B6'];
 
 document.addEventListener('DOMContentLoaded', async () => {
-    await loadData();
-    setupEventListeners();
-    initBackdropSync(); // 初始化背景同步
-    loadCustomVocab();
-    updateBlocklist();
+  await loadData();
+  setupEventListeners();
+  initBackdropSync(); // 初始化背景同步
+  loadCustomVocab();
+  updateBlocklist();
 });
 
 async function loadData() {
-    try {
-        const tbclRes = await fetch('tbcl_data.json');
-        tbclData = await tbclRes.json();
-        const lessonRes = await fetch('vocab_by_lesson.json');
-        lessonData = await lessonRes.json();
+  try {
+    const tbclRes = await fetch('tbcl_data.json');
+    tbclData = await tbclRes.json();
+    const lessonRes = await fetch('vocab_by_lesson.json');
+    lessonData = await lessonRes.json();
+    
+    Object.keys(lessonData).forEach(k => selectedLessons.add(k));
+    Object.values(lessonData).forEach(wordList => wordList.forEach(w => knownWords.add(w)));
 
-        Object.keys(lessonData).forEach(k => selectedLessons.add(k));
-        Object.values(lessonData).forEach(wordList => wordList.forEach(w => knownWords.add(w)));
-
-        renderLessonCheckboxes();
-        console.log('資料載入完成');
-    } catch (error) {
-        console.error('載入失敗:', error);
-        alert('載入資料失敗，請確認 JSON 檔案是否存在');
-    }
+    renderLessonCheckboxes();
+    console.log('資料載入完成');
+  } catch (error) {
+    console.error('載入失敗:', error);
+    alert('載入資料失敗，請確認 JSON 檔案是否存在');
+  }
 }
 
 // === 樣式同步核心 ===
 function initBackdropSync() {
     const input = document.getElementById('inputText');
     const backdrop = document.getElementById('inputBackdrop');
-
+    
     // 1. 同步 CSS 樣式
     const syncStyles = () => {
         const style = window.getComputedStyle(input);
@@ -53,7 +53,7 @@ function initBackdropSync() {
             'boxSizing' // 重要
         ];
         props.forEach(p => backdrop.style[p] = style[p]);
-
+        
         // 修正寬度：使用 clientWidth 排除捲軸寬度，確保文字折行位置一致
         backdrop.style.width = input.clientWidth + 'px';
     };
@@ -71,13 +71,13 @@ function initBackdropSync() {
         backdrop.innerHTML = '';
         syncScroll();
     });
-
+    
     // 視窗改變大小時重新計算
     new ResizeObserver(() => {
         syncStyles();
         syncScroll();
     }).observe(input);
-
+    
     // 初始執行
     setTimeout(syncStyles, 100);
 }
@@ -89,7 +89,7 @@ function highlightWordInInput(word) {
     if (!input || !word) return;
 
     const text = input.value;
-
+    
     if (searchState.word !== word) {
         searchState.word = word;
         searchState.lastIndex = -1;
@@ -97,13 +97,13 @@ function highlightWordInInput(word) {
 
     let index = text.indexOf(word, searchState.lastIndex + 1);
     if (index === -1) {
-        index = text.indexOf(word, 0);
+        index = text.indexOf(word, 0); 
         if (index === -1) {
             alert(`在原文中找不到「${word}」`);
             return;
         }
     }
-
+    
     searchState.lastIndex = index;
 
     // 分割文字
@@ -112,11 +112,12 @@ function highlightWordInInput(word) {
     const after = text.substring(index + word.length);
 
     // 建立 SVG (使用 span 包裹，確保位置跟隨文字流)
+    // 【修改】將路徑改為方形 (M0,0 L100,0 L100,100 L0,100 Z)
     const svgMarker = `
     <span class="highlight-marker">
         ${escapeHTML(target)}
         <svg class="highlight-svg" viewBox="0 0 100 100" preserveAspectRatio="none">
-            <path d="M5,50 Q25,20 50,20 T95,50 T50,80 T5,50" vector-effect="non-scaling-stroke" fill="none" />
+            <path d="M1,1 L99,1 L99,99 L1,99 Z" vector-effect="non-scaling-stroke" fill="none" />
         </svg>
     </span>`;
 
@@ -131,7 +132,7 @@ function highlightWordInInput(word) {
     // 捲動輸入框
     input.focus();
     input.setSelectionRange(index, index + word.length);
-
+    
     // 觸發 scroll 事件以同步背景
     const blurFocus = () => {
         input.blur();
@@ -142,85 +143,85 @@ function highlightWordInInput(word) {
 
 function escapeHTML(text) {
     return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+               .replace(/"/g, "&quot;").replace(/'/g, "&#039;");
 }
 
 // ---------------- 以下為原有的斷詞與UI邏輯 (保持不變) ----------------
 
 function renderLessonCheckboxes() {
-    const container = document.getElementById('lessonCheckboxes');
-    container.innerHTML = '';
-    const books = {};
-    BOOK_ORDER.forEach(b => books[b] = []);
-    Object.keys(lessonData).forEach(k => {
-        const m = k.match(/^(B\d+)/);
-        if (m && books[m[1]]) books[m[1]].push(k);
-    });
+  const container = document.getElementById('lessonCheckboxes');
+  container.innerHTML = '';
+  const books = {};
+  BOOK_ORDER.forEach(b => books[b] = []);
+  Object.keys(lessonData).forEach(k => {
+    const m = k.match(/^(B\d+)/);
+    if (m && books[m[1]]) books[m[1]].push(k);
+  });
 
-    BOOK_ORDER.forEach(bookName => {
-        const lessons = books[bookName];
-        if (lessons.length === 0) return;
-        lessons.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  BOOK_ORDER.forEach(bookName => {
+      const lessons = books[bookName];
+      if (lessons.length === 0) return;
+      lessons.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
 
-        const groupDiv = document.createElement('div');
-        groupDiv.className = 'book-group';
+      const groupDiv = document.createElement('div');
+      groupDiv.className = 'book-group';
+      
+      const header = document.createElement('div');
+      header.className = 'book-header';
+      
+      const masterCb = document.createElement('input');
+      masterCb.type = 'checkbox';
+      masterCb.className = 'book-master-cb';
+      masterCb.dataset.book = bookName;
+      masterCb.onclick = (e) => {
+          e.stopPropagation();
+          const checked = e.target.checked;
+          const lessonCbs = groupDiv.querySelectorAll('.lesson-cb');
+          lessonCbs.forEach(cb => {
+              cb.checked = checked;
+              if (checked) selectedLessons.add(cb.value); else selectedLessons.delete(cb.value);
+          });
+          updateBlocklist();
+      };
 
-        const header = document.createElement('div');
-        header.className = 'book-header';
+      header.innerHTML += `<span> ${bookName} (${lessons.length} 課)</span>`;
+      const arrow = document.createElement('span');
+      arrow.textContent = '▼';
+      arrow.style.marginLeft = 'auto';
+      header.appendChild(arrow);
+      header.prepend(masterCb);
 
-        const masterCb = document.createElement('input');
-        masterCb.type = 'checkbox';
-        masterCb.className = 'book-master-cb';
-        masterCb.dataset.book = bookName;
-        masterCb.onclick = (e) => {
-            e.stopPropagation();
-            const checked = e.target.checked;
-            const lessonCbs = groupDiv.querySelectorAll('.lesson-cb');
-            lessonCbs.forEach(cb => {
-                cb.checked = checked;
-                if (checked) selectedLessons.add(cb.value); else selectedLessons.delete(cb.value);
-            });
-            updateBlocklist();
-        };
+      const content = document.createElement('div');
+      content.className = 'book-content';
+      content.id = `content-${bookName}`;
+      if (bookName === 'B1') { content.classList.add('open'); arrow.textContent = '▲'; }
 
-        header.innerHTML += `<span> ${bookName} (${lessons.length} 課)</span>`;
-        const arrow = document.createElement('span');
-        arrow.textContent = '▼';
-        arrow.style.marginLeft = 'auto';
-        header.appendChild(arrow);
-        header.prepend(masterCb);
+      header.onclick = (e) => {
+          if (e.target.type === 'checkbox') return;
+          content.classList.toggle('open');
+          arrow.textContent = content.classList.contains('open') ? '▲' : '▼';
+      };
 
-        const content = document.createElement('div');
-        content.className = 'book-content';
-        content.id = `content-${bookName}`;
-        if (bookName === 'B1') { content.classList.add('open'); arrow.textContent = '▲'; }
-
-        header.onclick = (e) => {
-            if (e.target.type === 'checkbox') return;
-            content.classList.toggle('open');
-            arrow.textContent = content.classList.contains('open') ? '▲' : '▼';
-        };
-
-        lessons.forEach(l => {
-            const lbl = document.createElement('label');
-            lbl.className = 'checkbox-item';
-            const cb = document.createElement('input');
-            cb.type = 'checkbox';
-            cb.value = l;
-            cb.className = `lesson-cb book-${bookName}`;
-            cb.checked = selectedLessons.has(l);
-            cb.onchange = () => {
-                if (cb.checked) selectedLessons.add(l); else selectedLessons.delete(l);
-                updateBlocklist();
-            };
-            lbl.append(cb, l);
-            content.appendChild(lbl);
-        });
-        groupDiv.append(header, content);
-        container.appendChild(groupDiv);
-    });
-    updateBookMasterStatus();
-    updateSelectedCountUI();
+      lessons.forEach(l => {
+          const lbl = document.createElement('label');
+          lbl.className = 'checkbox-item';
+          const cb = document.createElement('input');
+          cb.type = 'checkbox';
+          cb.value = l;
+          cb.className = `lesson-cb book-${bookName}`;
+          cb.checked = selectedLessons.has(l);
+          cb.onchange = () => {
+              if (cb.checked) selectedLessons.add(l); else selectedLessons.delete(l);
+              updateBlocklist();
+          };
+          lbl.append(cb, l);
+          content.appendChild(lbl);
+      });
+      groupDiv.append(header, content);
+      container.appendChild(groupDiv);
+  });
+  updateBookMasterStatus();
+  updateSelectedCountUI();
 }
 
 function updateBookMasterStatus() {
@@ -236,7 +237,7 @@ function updateBookMasterStatus() {
     });
 }
 
-window.selectUpTo = function (targetBook) {
+window.selectUpTo = function(targetBook) {
     const idx = BOOK_ORDER.indexOf(targetBook);
     if (idx === -1) return;
     const cbs = document.querySelectorAll('.lesson-cb');
@@ -255,7 +256,7 @@ window.selectUpTo = function (targetBook) {
     if (tContent) tContent.classList.add('open');
 }
 
-window.toggleBook = function (targetBook) {
+window.toggleBook = function(targetBook) {
     const cbs = document.querySelectorAll(`.lesson-cb.book-${targetBook}`);
     const allChecked = Array.from(cbs).every(c => c.checked);
     cbs.forEach(cb => {
@@ -265,7 +266,7 @@ window.toggleBook = function (targetBook) {
     updateBlocklist();
 }
 
-window.toggleAllLessons = function (checked) {
+window.toggleAllLessons = function(checked) {
     const cbs = document.querySelectorAll('.lesson-cb');
     selectedLessons.clear();
     cbs.forEach(cb => {
@@ -291,121 +292,121 @@ function updateBlocklist() {
 }
 
 function setupEventListeners() {
-    document.getElementById('analyzeBtn').onclick = analyzeText;
-    document.getElementById('clearBtn').onclick = () => {
-        document.getElementById('inputText').value = '';
-        document.getElementById('outputList').innerHTML = '';
-        document.getElementById('stats').innerHTML = '<span>總字數: 0</span><span>生詞數: 0</span>';
-        document.getElementById('inputBackdrop').innerHTML = '';
-        window.lastAnalysis = [];
-    };
-    // (Old vocab handlers omitted for brevity, same as before)
-    document.getElementById('copyBtn').onclick = () => {
-        if (!window.lastAnalysis?.length) return;
-        const t = window.lastAnalysis.map((i, idx) => `${idx + 1}. ${i.word} (Level ${i.level})`).join('\n');
-        navigator.clipboard.writeText(t).then(() => alert('已複製'));
-    };
-    document.getElementById('exportBtn').onclick = () => {
-        if (!window.lastAnalysis?.length) return;
-        const b = new Blob([JSON.stringify(window.lastAnalysis, null, 2)], { type: 'application/json' });
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(b);
-        a.download = 'vocab.json';
-        a.click();
-    };
+  document.getElementById('analyzeBtn').onclick = analyzeText;
+  document.getElementById('clearBtn').onclick = () => {
+      document.getElementById('inputText').value = '';
+      document.getElementById('outputList').innerHTML = '';
+      document.getElementById('stats').innerHTML = '<span>總字數: 0</span><span>生詞數: 0</span>';
+      document.getElementById('inputBackdrop').innerHTML = '';
+      window.lastAnalysis = [];
+  };
+  // (Old vocab handlers omitted for brevity, same as before)
+  document.getElementById('copyBtn').onclick = () => {
+      if (!window.lastAnalysis?.length) return;
+      const t = window.lastAnalysis.map((i,idx)=>`${idx+1}. ${i.word} (Level ${i.level})`).join('\n');
+      navigator.clipboard.writeText(t).then(()=>alert('已複製'));
+  };
+  document.getElementById('exportBtn').onclick = () => {
+      if (!window.lastAnalysis?.length) return;
+      const b = new Blob([JSON.stringify(window.lastAnalysis,null,2)],{type:'application/json'});
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(b);
+      a.download = 'vocab.json';
+      a.click();
+  };
 }
 
 function analyzeText() {
-    const text = document.getElementById('inputText').value;
-    if (!text.trim()) { alert('請輸入文字'); return; }
+  const text = document.getElementById('inputText').value;
+  if (!text.trim()) { alert('請輸入文字'); return; }
+  
+  document.getElementById('inputBackdrop').innerHTML = '';
+  searchState = { word: '', lastIndex: -1 };
 
-    document.getElementById('inputBackdrop').innerHTML = '';
-    searchState = { word: '', lastIndex: -1 };
+  const useAdvanced = document.getElementById('useAdvancedSegmenter').checked;
+  const useGrammar = document.getElementById('useGrammarRules').checked;
 
-    const useAdvanced = document.getElementById('useAdvancedSegmenter').checked;
-    const useGrammar = document.getElementById('useGrammarRules').checked;
+  let words = [];
+  if (useAdvanced && typeof advancedSegment !== 'undefined') {
+      const dict = { ...tbclData };
+      knownWords.forEach(w => { if (!dict[w]) dict[w] = '0'; });
+      words = advancedSegment(text, dict, finalBlocklist, true, useGrammar);
+  } else {
+      const segmenter = new Intl.Segmenter('zh-TW', { granularity: 'word' });
+      words = Array.from(segmenter.segment(text)).map(s => s.segment);
+  }
 
-    let words = [];
-    if (useAdvanced && typeof advancedSegment !== 'undefined') {
-        const dict = { ...tbclData };
-        knownWords.forEach(w => { if (!dict[w]) dict[w] = '0'; });
-        words = advancedSegment(text, dict, finalBlocklist, true, useGrammar);
-    } else {
-        const segmenter = new Intl.Segmenter('zh-TW', { granularity: 'word' });
-        words = Array.from(segmenter.segment(text)).map(s => s.segment);
-    }
+  const results = [];
+  const uniq = new Set();
+  words.forEach(w => {
+      if (/^[。，、；：！？「」『』（）《》…—\s\d\w]+$/.test(w) || !w.trim()) return;
+      if (finalBlocklist.has(w)) return;
+      if (uniq.has(w)) return;
+      uniq.add(w);
+      results.push({ word: w, level: tbclData[w] || '0' });
+  });
 
-    const results = [];
-    const uniq = new Set();
-    words.forEach(w => {
-        if (/^[。，、；：！？「」『』（）《》…—\s\d\w]+$/.test(w) || !w.trim()) return;
-        if (finalBlocklist.has(w)) return;
-        if (uniq.has(w)) return;
-        uniq.add(w);
-        results.push({ word: w, level: tbclData[w] || '0' });
-    });
-
-    window.lastAnalysis = results;
-    displayResults();
+  window.lastAnalysis = results;
+  displayResults();
 }
 
 function displayResults() {
-    const list = window.lastAnalysis || [];
-    const container = document.getElementById('outputList');
-    container.innerHTML = '';
+  const list = window.lastAnalysis || [];
+  const container = document.getElementById('outputList');
+  container.innerHTML = '';
+  
+  if (!list.length) {
+      container.innerHTML = '<div style="text-align:center;color:#888;margin-top:50px;">沒有發現生詞！</div>';
+      return;
+  }
 
-    if (!list.length) {
-        container.innerHTML = '<div style="text-align:center;color:#888;margin-top:50px;">沒有發現生詞！</div>';
-        return;
-    }
+  list.forEach((item, idx) => {
+      const div = document.createElement('div');
+      div.className = `vocab-item level-${item.level}`;
+      div.style.cursor = 'pointer';
+      div.title = '點擊在文章中定位';
+      div.onclick = (e) => {
+          if (e.target.tagName === 'BUTTON') return;
+          highlightWordInInput(item.word);
+      };
 
-    list.forEach((item, idx) => {
-        const div = document.createElement('div');
-        div.className = `vocab-item level-${item.level}`;
-        div.style.cursor = 'pointer';
-        div.title = '點擊在文章中定位';
-        div.onclick = (e) => {
-            if (e.target.tagName === 'BUTTON') return;
-            highlightWordInInput(item.word);
-        };
+      const mergeBtn = idx < list.length - 1 ? 
+          `<button class="action-btn merge-btn" onclick="mergeWithNext(${idx})">🔗 合併</button>` : '';
 
-        const mergeBtn = idx < list.length - 1 ?
-            `<button class="action-btn merge-btn" onclick="mergeWithNext(${idx})">🔗 合併</button>` : '';
-
-        div.innerHTML = `
+      div.innerHTML = `
         <div class="vocab-info">
-            <span style="font-weight:bold;font-size:18px;">${idx + 1}. ${item.word}</span>
-            <span class="level-tag">${item.level === '0' ? '未知' : 'Level ' + item.level}</span>
+            <span style="font-weight:bold;font-size:18px;">${idx+1}. ${item.word}</span>
+            <span class="level-tag">${item.level === '0' ? '未知' : 'Level '+item.level}</span>
         </div>
         <div class="vocab-actions">
             <button class="action-btn" onclick="openSplitModal(${idx})">✂️ 切分</button>
             ${mergeBtn}
         </div>`;
-        container.appendChild(div);
-    });
-
-    document.getElementById('stats').innerHTML = `<span>總字數: ${document.getElementById('inputText').value.length}</span><span>生詞數: ${list.length}</span>`;
+      container.appendChild(div);
+  });
+  
+  document.getElementById('stats').innerHTML = `<span>總字數: ${document.getElementById('inputText').value.length}</span><span>生詞數: ${list.length}</span>`;
 }
 
 // 切分與合併邏輯 (保持不變)
-window.mergeWithNext = function (i) {
+window.mergeWithNext = function(i) {
     const l = window.lastAnalysis;
-    const w = l[i].word + l[i + 1].word;
+    const w = l[i].word + l[i+1].word;
     l.splice(i, 2, { word: w, level: tbclData[w] || '0' });
     displayResults();
 };
-window.openSplitModal = function (i) {
+window.openSplitModal = function(i) {
     editingIndex = i;
     document.getElementById('splitInput').value = window.lastAnalysis[i].word;
     document.getElementById('splitModal').style.display = 'block';
-    setTimeout(() => document.getElementById('splitInput').focus(), 100);
+    setTimeout(()=>document.getElementById('splitInput').focus(), 100);
 };
 window.closeSplitModal = () => { document.getElementById('splitModal').style.display = 'none'; editingIndex = -1; };
 window.confirmSplit = () => {
     if (editingIndex === -1) return;
     const val = document.getElementById('splitInput').value;
     if (!val.trim()) { closeSplitModal(); return; }
-    const newW = val.split(/\s+/).filter(x => x.trim());
+    const newW = val.split(/\s+/).filter(x=>x.trim());
     if (newW.join('') !== window.lastAnalysis[editingIndex].word) {
         if (!confirm('文字不符，確定修改？')) return;
     }
