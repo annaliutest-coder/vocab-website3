@@ -8,6 +8,7 @@ let finalBlocklist = new Set();
 
 // 1. 斷詞提示庫：告訴系統這些是「一個詞」，請優先斷出來
 // 注意：這裡只負責斷詞，過濾功能由 finalBlocklist 負責
+// 我們預設加入一些詞，後續會自動從 lessonData 補充所有課本詞彙
 let knownWords = new Set(["紅色", "護龍", "還都", "看書", "吃飯", "一定", "因為", "大家", "讓"]); 
 
 // 用於手動切分
@@ -21,6 +22,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   setupEventListeners();
   initBackdropSync(); // 初始化背景同步
   loadCustomVocab();
+  
+  // 確保在所有資料載入後，更新一次過濾清單
   updateBlocklist();
 });
 
@@ -31,14 +34,19 @@ async function loadData() {
     const lessonRes = await fetch('vocab_by_lesson.json');
     lessonData = await lessonRes.json();
     
-    // 預設全選
+    // ==========================================
+    // 核心修正：預設將所有載入的課別 (B1L1...B6L1) 加入已選清單
+    // 這代表所有課本詞彙預設都會被「過濾」(避開)
+    // ==========================================
+    selectedLessons.clear();
     Object.keys(lessonData).forEach(k => selectedLessons.add(k));
     
     // 將所有課本生詞加入「斷詞提示庫」(knownWords)，確保斷詞準確
+    // 這一步是為了讓斷詞引擎知道這些是詞彙，但過濾與否由 selectedLessons 決定
     Object.values(lessonData).forEach(wordList => wordList.forEach(w => knownWords.add(w)));
 
     renderLessonCheckboxes();
-    console.log('資料載入完成');
+    console.log(`資料載入完成。已預設過濾 ${selectedLessons.size} 課的生詞。`);
   } catch (error) {
     console.error('載入失敗:', error);
     alert('載入資料失敗，請確認 JSON 檔案是否存在');
@@ -89,7 +97,7 @@ function initBackdropSync() {
     setTimeout(syncStyles, 100);
 }
 
-// 產生綠色反白標記 (無反白選取)
+// 產生綠色底色標記 (無反白選取)
 function highlightWordInInput(word) {
     const input = document.getElementById('inputText');
     const backdrop = document.getElementById('inputBackdrop');
@@ -118,7 +126,7 @@ function highlightWordInInput(word) {
     const target = text.substring(index, index + word.length);
     const after = text.substring(index + word.length);
 
-    // 建立 Span 反白標記 (取代 SVG)
+    // 建立 Span 底色標記 (對應 index.html 的 .highlight-marker 綠色樣式)
     const highlightMarker = `<span class="highlight-marker">${escapeHTML(target)}</span>`;
 
     // 組合 HTML，特別處理結尾換行
@@ -138,6 +146,10 @@ function highlightWordInInput(word) {
         
         // 設定捲動 (會透過 syncScroll 自動同步 backdrop)
         input.scrollTop = scrollTarget;
+        
+        // 確保輸入框獲得焦點，方便鍵盤操作，但不要選取文字
+        input.focus(); 
+        input.setSelectionRange(index, index); // 將游標置於詞彙開頭，但不選取
     }
 }
 
@@ -207,6 +219,7 @@ function renderLessonCheckboxes() {
           cb.type = 'checkbox';
           cb.value = l;
           cb.className = `lesson-cb book-${bookName}`;
+          // 這裡根據 selectedLessons 設定是否勾選，因為 loadData 已全選，這裡預設會是勾選的
           cb.checked = selectedLessons.has(l);
           cb.onchange = () => {
               if (cb.checked) selectedLessons.add(l); else selectedLessons.delete(l);
@@ -248,7 +261,7 @@ window.selectUpTo = function(targetBook) {
         }
     });
     updateBlocklist();
-    document.querySelectorAll('.book-content').classList?.remove('open');
+    document.querySelectorAll('.book-content').forEach(el => el.classList.remove('open'));
     const tContent = document.getElementById(`content-${targetBook}`);
     if (tContent) tContent.classList.add('open');
 }
@@ -286,6 +299,8 @@ function updateBlocklist() {
     
     // 2. 加入手動補充的詞彙
     customOldVocab.forEach(w => finalBlocklist.add(w));
+    
+    // 不再使用預設排除清單，完全依賴勾選範圍與手動補充
     
     document.getElementById('totalBlockedCount').innerText = finalBlocklist.size;
     updateSelectedCountUI();
