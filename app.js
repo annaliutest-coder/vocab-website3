@@ -1,4 +1,4 @@
-// app.js - 網站版生詞分析助手（含分冊累積選擇、手動切分 & 合併功能 & 綠色反白定位 & 舊詞過濾修正）
+// app.js - 網站版生詞分析助手（含分冊累積選擇、手動切分 & 合併功能 & 綠色反白定位 & 純資料庫過濾）
 
 let tbclData = {};
 let lessonData = {}; 
@@ -6,7 +6,11 @@ let customOldVocab = new Set();
 let selectedLessons = new Set();
 let finalBlocklist = new Set();
 
-let knownWords = new Set(["紅色", "護龍", "還都", "看書", "吃飯", "一定"]); 
+// 1. 斷詞提示庫：告訴系統這些是「一個詞」，請優先斷出來
+// 這裡保留基本結構，主要依賴 lessonData 填充
+let knownWords = new Set(["紅色", "護龍", "還都", "看書", "吃飯", "一定", "因為", "大家", "讓"]); 
+
+// 用於手動切分
 let editingIndex = -1;
 let searchState = { word: '', lastIndex: -1 };
 
@@ -27,7 +31,11 @@ async function loadData() {
     const lessonRes = await fetch('vocab_by_lesson.json');
     lessonData = await lessonRes.json();
     
+    // 預設全選
     Object.keys(lessonData).forEach(k => selectedLessons.add(k));
+    
+    // 將所有課本生詞加入「斷詞提示庫」(knownWords)，確保斷詞準確
+    // 這一步是為了讓斷詞引擎知道這些是詞彙，但過濾與否由 selectedLessons 決定
     Object.values(lessonData).forEach(wordList => wordList.forEach(w => knownWords.add(w)));
 
     renderLessonCheckboxes();
@@ -82,7 +90,7 @@ function initBackdropSync() {
     setTimeout(syncStyles, 100);
 }
 
-// 產生綠色反白標記
+// 產生綠色反白標記 (無反白選取)
 function highlightWordInInput(word) {
     const input = document.getElementById('inputText');
     const backdrop = document.getElementById('inputBackdrop');
@@ -122,16 +130,16 @@ function highlightWordInInput(word) {
 
     backdrop.innerHTML = htmlContent;
 
-    // 捲動輸入框
-    input.focus();
-    input.setSelectionRange(index, index + word.length);
-    
-    // 觸發 scroll 事件以同步背景
-    const blurFocus = () => {
-        input.blur();
-        input.focus();
-    };
-    setTimeout(blurFocus, 10);
+    // 【修改】只捲動到該位置，不執行 setSelectionRange (不反白)
+    const marker = backdrop.querySelector('.highlight-marker');
+    if (marker) {
+        // 計算捲動位置，讓標記出現在畫面中間
+        const offsetTop = marker.offsetTop;
+        const scrollTarget = offsetTop - (input.clientHeight / 2) + (marker.offsetHeight / 2);
+        
+        // 設定捲動 (會透過 syncScroll 自動同步 backdrop)
+        input.scrollTop = scrollTarget;
+    }
 }
 
 function escapeHTML(text) {
@@ -272,10 +280,16 @@ function updateSelectedCountUI() {
 
 function updateBlocklist() {
     finalBlocklist.clear();
+    // 1. 加入勾選的課本詞彙
     selectedLessons.forEach(l => {
         if (lessonData[l]) lessonData[l].forEach(w => finalBlocklist.add(w));
     });
+    
+    // 2. 加入手動補充的詞彙
     customOldVocab.forEach(w => finalBlocklist.add(w));
+    
+    // 3. (已移除) 不再使用預設排除清單，完全依賴勾選範圍
+    
     document.getElementById('totalBlockedCount').innerText = finalBlocklist.size;
     updateSelectedCountUI();
     updateBookMasterStatus();
@@ -309,7 +323,7 @@ function setupEventListeners() {
     input.value = '';
     showStatus(`已新增 ${addedCount} 個補充舊詞`, 'success');
     
-    // 【修正】新增舊詞後，立即重新分析
+    // 新增舊詞後，立即重新分析
     if (document.getElementById('inputText').value.trim()) {
         analyzeText(); 
     }
@@ -327,7 +341,7 @@ function setupEventListeners() {
         saveCustomVocab();
         document.getElementById('oldVocabInput').value = '';
         showStatus('已清除補充舊詞', 'success');
-        // 【修正】清除後也重新分析
+        // 清除後也重新分析
         if (document.getElementById('inputText').value.trim()) {
             analyzeText(); 
         }
@@ -429,17 +443,15 @@ function displayResults() {
   document.getElementById('stats').innerHTML = `<span>總字數: ${document.getElementById('inputText').value.length}</span><span>生詞數: ${list.length}</span>`;
 }
 
-// 【修正】合併與切分後，必須再次過濾掉 blocklist 中的詞
+// 合併與切分後，必須再次過濾掉 blocklist 中的詞
 window.mergeWithNext = function(i) {
     const l = window.lastAnalysis;
     const w = l[i].word + l[i+1].word;
     
     // 檢查合併後的詞是否在避開清單中
     if (finalBlocklist.has(w)) {
-        // 如果合併後的詞是舊詞，則直接從列表中移除這兩個詞 (不顯示新詞)
         l.splice(i, 2); 
     } else {
-        // 否則插入新詞
         l.splice(i, 2, { word: w, level: tbclData[w] || '0' });
     }
     displayResults();
@@ -463,10 +475,10 @@ window.confirmSplit = () => {
         if (!confirm('文字不符，確定修改？')) return;
     }
     
-    // 【修正】過濾掉切分後屬於舊詞的部分
+    // 過濾掉切分後屬於舊詞的部分
     const ins = [];
     newW.forEach(w => {
-        if (!finalBlocklist.has(w)) { // 只有非舊詞才加入列表
+        if (!finalBlocklist.has(w)) { 
             ins.push({ word: w, level: tbclData[w] || '0' });
         }
     });
