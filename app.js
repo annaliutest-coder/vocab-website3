@@ -1,4 +1,4 @@
-// app.js - 網站版生詞分析助手（含分冊累積選擇、手動切分 & 合併功能 & 完美綠色反白定位）
+// app.js - 網站版生詞分析助手（含分冊累積選擇、手動切分 & 合併功能 & 綠色反白定位 & 舊詞過濾修正）
 
 let tbclData = {};
 let lessonData = {}; 
@@ -112,7 +112,6 @@ function highlightWordInInput(word) {
     const after = text.substring(index + word.length);
 
     // 建立 Span 反白標記 (取代 SVG)
-    // 使用 span class="highlight-marker"
     const highlightMarker = `<span class="highlight-marker">${escapeHTML(target)}</span>`;
 
     // 組合 HTML，特別處理結尾換行
@@ -139,8 +138,6 @@ function escapeHTML(text) {
     return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
                .replace(/"/g, "&quot;").replace(/'/g, "&#039;");
 }
-
-// ---------------- 以下為原有的斷詞與UI邏輯 (保持不變) ----------------
 
 function renderLessonCheckboxes() {
   const container = document.getElementById('lessonCheckboxes');
@@ -244,7 +241,6 @@ window.selectUpTo = function(targetBook) {
         }
     });
     updateBlocklist();
-    // Expand
     document.querySelectorAll('.book-content').classList?.remove('open');
     const tContent = document.getElementById(`content-${targetBook}`);
     if (tContent) tContent.classList.add('open');
@@ -294,7 +290,50 @@ function setupEventListeners() {
       document.getElementById('inputBackdrop').innerHTML = '';
       window.lastAnalysis = [];
   };
-  // (Old vocab handlers omitted for brevity, same as before)
+  
+  document.getElementById('addOldVocabBtn').addEventListener('click', () => {
+    const input = document.getElementById('oldVocabInput');
+    const text = input.value.trim();
+    if (!text) return;
+
+    const words = text.split(/[\n,、\s]+/).map(w => w.trim()).filter(w => w);
+    let addedCount = 0;
+    words.forEach(w => {
+        if (!customOldVocab.has(w)) {
+            customOldVocab.add(w);
+            addedCount++;
+        }
+    });
+
+    saveCustomVocab();
+    input.value = '';
+    showStatus(`已新增 ${addedCount} 個補充舊詞`, 'success');
+    
+    // 【修正】新增舊詞後，立即重新分析
+    if (document.getElementById('inputText').value.trim()) {
+        analyzeText(); 
+    }
+  });
+
+  document.getElementById('showOldVocabBtn').addEventListener('click', () => {
+    const list = [...customOldVocab].sort((a, b) => a.localeCompare(b, 'zh-TW'));
+    document.getElementById('oldVocabInput').value = list.join('\n');
+    showStatus(`目前有 ${list.length} 個補充舊詞`, 'info');
+  });
+  
+  document.getElementById('clearOldVocabBtn').addEventListener('click', () => {
+    if(confirm('確定要清除所有「手動補充」的舊詞嗎？(不會影響勾選的課本詞彙)')) {
+        customOldVocab.clear();
+        saveCustomVocab();
+        document.getElementById('oldVocabInput').value = '';
+        showStatus('已清除補充舊詞', 'success');
+        // 【修正】清除後也重新分析
+        if (document.getElementById('inputText').value.trim()) {
+            analyzeText(); 
+        }
+    }
+  });
+
   document.getElementById('copyBtn').onclick = () => {
       if (!window.lastAnalysis?.length) return;
       const t = window.lastAnalysis.map((i,idx)=>`${idx+1}. ${i.word} (Level ${i.level})`).join('\n');
@@ -308,11 +347,19 @@ function setupEventListeners() {
       a.download = 'vocab.json';
       a.click();
   };
+  
+  document.getElementById('splitInput').addEventListener('keypress', function (e) {
+    if (e.key === 'Enter') {
+      confirmSplit();
+    }
+  });
 }
 
 function analyzeText() {
   const text = document.getElementById('inputText').value;
-  if (!text.trim()) { alert('請輸入文字'); return; }
+  if (!text.trim()) { 
+      return; 
+  }
   
   document.getElementById('inputBackdrop').innerHTML = '';
   searchState = { word: '', lastIndex: -1 };
@@ -334,7 +381,7 @@ function analyzeText() {
   const uniq = new Set();
   words.forEach(w => {
       if (/^[。，、；：！？「」『』（）《》…—\s\d\w]+$/.test(w) || !w.trim()) return;
-      if (finalBlocklist.has(w)) return;
+      if (finalBlocklist.has(w)) return; // 過濾舊詞
       if (uniq.has(w)) return;
       uniq.add(w);
       results.push({ word: w, level: tbclData[w] || '0' });
@@ -350,7 +397,7 @@ function displayResults() {
   container.innerHTML = '';
   
   if (!list.length) {
-      container.innerHTML = '<div style="text-align:center;color:#888;margin-top:50px;">沒有發現生詞！</div>';
+      container.innerHTML = '<div style="text-align:center;color:#888;margin-top:50px;">沒有發現生詞！(全都是舊詞或已知詞彙)</div>';
       return;
   }
 
@@ -382,13 +429,22 @@ function displayResults() {
   document.getElementById('stats').innerHTML = `<span>總字數: ${document.getElementById('inputText').value.length}</span><span>生詞數: ${list.length}</span>`;
 }
 
-// 切分與合併邏輯 (保持不變)
+// 【修正】合併與切分後，必須再次過濾掉 blocklist 中的詞
 window.mergeWithNext = function(i) {
     const l = window.lastAnalysis;
     const w = l[i].word + l[i+1].word;
-    l.splice(i, 2, { word: w, level: tbclData[w] || '0' });
+    
+    // 檢查合併後的詞是否在避開清單中
+    if (finalBlocklist.has(w)) {
+        // 如果合併後的詞是舊詞，則直接從列表中移除這兩個詞 (不顯示新詞)
+        l.splice(i, 2); 
+    } else {
+        // 否則插入新詞
+        l.splice(i, 2, { word: w, level: tbclData[w] || '0' });
+    }
     displayResults();
 };
+
 window.openSplitModal = function(i) {
     editingIndex = i;
     document.getElementById('splitInput').value = window.lastAnalysis[i].word;
@@ -396,16 +452,34 @@ window.openSplitModal = function(i) {
     setTimeout(()=>document.getElementById('splitInput').focus(), 100);
 };
 window.closeSplitModal = () => { document.getElementById('splitModal').style.display = 'none'; editingIndex = -1; };
+
 window.confirmSplit = () => {
     if (editingIndex === -1) return;
     const val = document.getElementById('splitInput').value;
     if (!val.trim()) { closeSplitModal(); return; }
+    
     const newW = val.split(/\s+/).filter(x=>x.trim());
     if (newW.join('') !== window.lastAnalysis[editingIndex].word) {
         if (!confirm('文字不符，確定修改？')) return;
     }
-    const ins = newW.map(w => ({ word: w, level: tbclData[w] || '0' }));
+    
+    // 【修正】過濾掉切分後屬於舊詞的部分
+    const ins = [];
+    newW.forEach(w => {
+        if (!finalBlocklist.has(w)) { // 只有非舊詞才加入列表
+            ins.push({ word: w, level: tbclData[w] || '0' });
+        }
+    });
+    
     window.lastAnalysis.splice(editingIndex, 1, ...ins);
     displayResults();
     closeSplitModal();
 };
+
+function showStatus(msg, type) {
+    const el = document.getElementById('vocabStatus');
+    el.innerText = msg;
+    el.className = `status ${type}`;
+    el.style.display = 'block';
+    setTimeout(() => { el.style.display = 'none'; }, 3000);
+}

@@ -85,11 +85,11 @@
         width: 100%;
         margin-bottom: 15px;
         flex-shrink: 0;
-        height: 400px; /* 固定高度，讓內容捲動 */
+        height: 400px; /* 固定高度 */
         z-index: 0;
     }
 
-    /* 背景層：負責顯示反白 */
+    /* 背景層：負責顯示綠色反白 */
     .input-backdrop {
         position: absolute;
         top: 0;
@@ -104,7 +104,7 @@
         word-wrap: break-word;
         pointer-events: none; /* 讓點擊穿透 */
         border-radius: 10px;
-        /* Padding 和 Font 樣式會由 JS 動態複製 */
+        /* Padding 和 Font 樣式會由 JS 動態複製，確保對齊 */
     }
 
     /* 輸入框：負責輸入與捲動 */
@@ -134,14 +134,12 @@
     
     /* === 綠色反白樣式 === */
     .highlight-marker {
-        background-color: #9ae6b4; /* 綠色背景 (Tailwind green-300) */
+        background-color: #9ae6b4; /* 漂亮的淺綠色 */
         border-radius: 3px;
-        color: transparent; /* 保持文字透明，只顯示背景 */
-        padding: 2px 0; /* 稍微增加一點高度 */
-        box-shadow: 0 0 0 1px #68d391; /* 加一點邊框讓它更明顯 */
+        color: transparent;
+        box-shadow: 0 0 0 2px #9ae6b4; /* 稍微擴大範圍 */
     }
     
-    /* 其他 UI 元件 */
     .controls { display: flex; gap: 10px; flex-shrink: 0; }
     button { padding: 10px 20px; border: none; border-radius: 8px; font-size: 16px; cursor: pointer; font-weight: bold; }
     .btn-primary { background: #667eea; color: white; flex: 1; }
@@ -157,6 +155,7 @@
     .vocab-item:hover .vocab-actions { opacity: 1; }
     .action-btn { padding: 4px 8px; font-size: 12px; background: #edf2f7; color: #4a5568; border-radius: 4px; margin-left: 5px; cursor: pointer; }
     .merge-btn { background: #e6fffa; color: #2c7a7b; }
+    .merge-btn:hover { background: #b2f5ea; }
     
     .level-1 { border-left-color: #48bb78; } .level-1 .level-tag { background: #48bb78; }
     .level-2 { border-left-color: #38b2ac; } .level-2 .level-tag { background: #38b2ac; }
@@ -179,13 +178,17 @@
     .btn-xs { padding: 4px 8px; font-size: 12px; margin-right: 4px; margin-bottom: 4px; }
     .book-group { margin-bottom: 8px; border: 1px solid #ddd; border-radius: 6px; overflow: hidden; background: white; }
     .book-header { padding: 8px 12px; background: #f1f5f9; cursor: pointer; display: flex; justify-content: space-between; align-items: center; font-size: 14px; font-weight: bold; }
+    .book-header:hover { background: #e2e8f0; }
     .book-content { padding: 8px; display: none; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 6px; background: white; }
     .book-content.open { display: grid; }
     .checkbox-item { display: flex; align-items: center; font-size: 12px; cursor: pointer; padding: 4px; }
+    .checkbox-item:hover { background-color: #f7fafc; }
     .checkbox-item input { margin-right: 4px; }
 
-    .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); }
-    .modal-content { background-color: #fefefe; margin: 15% auto; padding: 25px; border-radius: 12px; width: 90%; max-width: 400px; box-shadow: 0 10px 25px rgba(0,0,0,0.3); }
+    .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); animation: fadeIn 0.3s; }
+    .modal-content { background-color: #fefefe; margin: 15% auto; padding: 25px; border-radius: 12px; width: 90%; max-width: 400px; box-shadow: 0 10px 25px rgba(0,0,0,0.3); animation: slideIn 0.3s; }
+    @keyframes fadeIn { from {opacity: 0} to {opacity: 1} }
+    @keyframes slideIn { from {transform: translateY(-20px)} to {transform: translateY(0)} }
 
     @media (max-width: 768px) {
       body { height: auto; overflow: auto; }
@@ -194,6 +197,8 @@
       .panel { height: auto; overflow: visible; }
       .input-wrapper { height: 300px; }
       .output-area { min-height: 300px; }
+      .button-group { flex-wrap: wrap; }
+      .btn-primary { width: 100%; }
     }
   </style>
 </head>
@@ -232,6 +237,7 @@
         <button id="clearBtn" class="btn-secondary">清除</button>
       </div>
 
+      <!-- 舊詞過濾設定 -->
       <div style="margin-top: 20px;">
         <h2>📚 舊詞範圍設定 <span style="font-size: 0.7em; color: #666; font-weight: normal;">(已選: <span id="selectedLessonCount">0</span> 課)</span></h2>
         <div class="lesson-selector">
